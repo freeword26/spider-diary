@@ -33,18 +33,12 @@ def _build_parser():
 
     for cmd in ("run", "check", "report", "kanban", "init", "status", "monitor", "cleanup"):
         sub = subparsers.add_parser(cmd, help=f"{cmd} command")
-        if cmd not in ("status",):
-            sub.add_argument(
-                "--base-path", "-b", default=None, help="Base project path"
-            )
-            sub.add_argument(
-                "--output-dir", "-o", default=None, help="Output directory for reports"
-            )
+        if cmd != "status":
+            sub.add_argument("--base-path", "-b", default=None, help="Base project path")
+            sub.add_argument("--output-dir", "-o", default=None, help="Output directory for reports")
             sub.add_argument("--db-path", "-d", default=None, help="Database path")
         else:
-            sub.add_argument(
-                "--base-path", "-b", default=None, help="Base project path"
-            )
+            sub.add_argument("--base-path", "-b", default=None, help="Base project path")
             sub.add_argument("--db-path", "-d", default=None, help="Database path")
         sub.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
         sub.add_argument("--json", action="store_true", dest="as_json", help="Output as JSON")
@@ -93,7 +87,6 @@ def _print_rich(result):
     table = Table(title="Spider Diary Result", show_lines=True)
     table.add_column("Key", style="bold cyan")
     table.add_column("Value", style="white")
-
     for key, value in result.items():
         if isinstance(value, dict):
             inner = "\n".join(f"{k}: {v}" for k, v in value.items())
@@ -103,7 +96,6 @@ def _print_rich(result):
             table.add_row(key, inner if inner else "(empty)")
         else:
             table.add_row(key, str(value))
-
     console.print(table)
 
 
@@ -140,18 +132,12 @@ def cmd_kanban(args):
     engine = _make_engine(args)
     tasks_by_status = {}
     for status in ("Backlog", "Doing", "Review", "Done", "Blocked"):
-        tasks_by_status[status.lower()] = engine.project_reader.get_tasks_by_status(
-            status
-        )
+        tasks_by_status[status.lower()] = engine.project_reader.get_tasks_by_status(status)
     project_stats = engine.project_reader.get_stats()
     kanban_data = {"stats": project_stats, "tasks": tasks_by_status}
     kanban_path = engine.kanban_syncer.sync(kanban_data)
     md_path = engine.kanban_syncer.sync_markdown(kanban_data)
-    result = {
-        "kanban_json_path": kanban_path,
-        "kanban_md_path": md_path,
-        "status": "ok",
-    }
+    result = {"kanban_json_path": kanban_path, "kanban_md_path": md_path, "status": "ok"}
     _print_result(result, as_json=args.as_json)
 
 
@@ -173,10 +159,7 @@ def cmd_init(args):
         ("TASK-007", "PROJ-003", "Archive old files", "agent-ops", "Blocked", "low", now),
     ]
     conn = engine.project_reader._connect()
-    conn.executemany(
-        "INSERT OR IGNORE INTO project_meta VALUES (?,?,?,?,?,?)",
-        sample_projects,
-    )
+    conn.executemany("INSERT OR IGNORE INTO project_meta VALUES (?,?,?,?,?,?)", sample_projects)
     conn.executemany(
         "INSERT OR IGNORE INTO task_board (task_id, project_id, description, assignee, kanban_status, priority, created_date) VALUES (?,?,?,?,?,?,?)",
         sample_tasks,
@@ -200,16 +183,14 @@ def cmd_status(args):
             print(summary)
 
 
-COMMANDS = {
-    "run": cmd_run,
-    "check": cmd_check,
-    "report": cmd_report,
-    "kanban": cmd_kanban,
-    "init": cmd_init,
-    "status": cmd_status,
-    "monitor": cmd_monitor,
-    "cleanup": cmd_cleanup,
-}
+def cmd_cleanup(args):
+    """Run cleanup scheduler (3-tier storage management)."""
+    from spider_diary.core.cleanup_scheduler import CleanupScheduler
+
+    base = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
+    scheduler = CleanupScheduler(base_path=base)
+    summary = scheduler.run_full_cleanup()
+    _print_result(summary, as_json=args.as_json)
 
 
 def cmd_monitor(args):
@@ -222,14 +203,16 @@ def cmd_monitor(args):
     _print_result(results, as_json=args.as_json)
 
 
-def cmd_cleanup(args):
-    """Run cleanup scheduler (3-tier storage management)."""
-    from spider_diary.core.cleanup_scheduler import CleanupScheduler
-
-    base = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
-    scheduler = CleanupScheduler(base_path=base)
-    summary = scheduler.run_full_cleanup()
-    _print_result(summary, as_json=args.as_json)
+COMMANDS = {
+    "run": cmd_run,
+    "check": cmd_check,
+    "report": cmd_report,
+    "kanban": cmd_kanban,
+    "init": cmd_init,
+    "status": cmd_status,
+    "cleanup": cmd_cleanup,
+    "monitor": cmd_monitor,
+}
 
 
 def main():
