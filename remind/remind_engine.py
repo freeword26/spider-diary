@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 # ── 默认路径 ──────────────────────────────────────────────────
 DEFAULT_BASE = Path(__file__).resolve().parents[2]
-DEFAULT_GOV_DB = DEFAULT_BASE / "3_任务执行中枢（TAPD）" / "07_数据库" / "project_governance.db"
+DEFAULT_GOV_DB = DEFAULT_BASE / "data" / "project_governance.db"
 DEFAULT_PROJ_DB = DEFAULT_BASE / "data" / "project_management.db"
-DEFAULT_REPORT_DIR = DEFAULT_BASE / "3_任务执行中枢（TAPD）" / "07_监控报告"
+DEFAULT_REPORT_DIR = DEFAULT_BASE / "reports"
 
 
 class RemindEngine:
@@ -165,6 +165,116 @@ class RemindEngine:
             logger.warning("scan_health_failures error: %s", e)
         return items
 
+    def scan_docker_health(self) -> List[Dict]:
+        """扫描 Docker 健康状态：磁盘占用、退出容器、悬挂镜像。
+
+        通过 subprocess 调用 ``docker system df`` 和 ``docker ps -a``
+        获取实时数据，检测以下异常：
+        - 磁盘占用超过 80%
+        - 退出状态容器（Exited）超过 10 个
+        - 悬挂镜像（<none>:<none>）超过 20 个
+        """
+        import subprocess
+
+        items: List[Dict] = []
+
+        # ── 1. 磁盘占用 ───────────────────────────────────────────
+        try:
+            result = subprocess.run(
+                ["docker", "system", "df"],
+                capture_output=True, text=True, timeout=15, shell=True,
+            )
+            if result.returncode == 0:
+                for line in result.stdout.strip().split("\n"):
+                    if "Images" in line and "%" in line:
+                        try:
+                            pct_str = line.split()[-1].rstrip("%")
+                            pct = float(pct_str)
+                            if pct >= 80:
+                                items.append({
+                                    "id": "docker-disk-images",
+                                    "severity": "warning" if pct < 90 else "critical",
+                                    "title": f"Docker 镜像磁盘占用 {pct}%",
+                                    "message": line.strip(),
+                                    "impact": "磁盘空间不足，影响容器拉取和构建",
+                                    "suggestion": "运行 docker system prune -a 清理",
+                                    "source": "scan_docker_health",
+                                })
+                        except (ValueError, IndexError):
+                            pass
+            else:
+                items.append({
+                    "id": "docker-unavailable",
+                    "severity": "warning",
+                    "title": "Docker 不可用",
+                    "message": f"docker system df 返回 {result.returncode}",
+                    "impact": "无法监控 Docker 健康状态",
+                    "suggestion": "检查 Docker 服务是否运行",
+                    "source": "scan_docker_health",
+                })
+        except FileNotFoundError:
+            pass  # Docker 未安装，跳过
+        except subprocess.TimeoutExpired:
+            items.append({
+                "id": "docker-timeout",
+                "severity": "warning",
+                "title": "Docker 命令超时",
+                "message": "docker system df 执行超过 15 秒",
+                "impact": "Docker 服务可能无响应",
+                "suggestion": "检查 Docker 守护进程状态",
+                "source": "scan_docker_health",
+            })
+        except Exception as e:
+            logger.warning("scan_docker_health disk error: %s", e)
+
+        # ── 2. 退出容器 ────────────────────────────────────────────
+        try:
+            result = subprocess.run(
+                ["docker", "ps", "-a", "--filter", "status=exited", "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}"],
+                capture_output=True, text=True, timeout=15, shell=True,
+            )
+            if result.returncode == 0:
+                exited_lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
+                if len(exited_lines) > 10:
+                    items.append({
+                        "id": "docker-exited-containers",
+                        "severity": "warning",
+                        "title": f"退出容器堆积: {len(exited_lines)} 个",
+                        "message": f"超过 10 个退出状态容器: " + ", ".join(l.split("\t")[1] for l in exited_lines[:5]),
+                        "impact": "占用磁盘空间，可能包含残留数据",
+                        "suggestion": "运行 docker container prune 清理",
+                        "source": "scan_docker_health",
+                    })
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        except Exception as e:
+            logger.warning("scan_docker_health containers error: %s", e)
+
+        # ── 3. 悬挂镜像 ───────────────────────────────────────────
+        try:
+            result = subprocess.run(
+                ["docker", "images", "--filter", "dangling=true", "--format", "{{.ID}}\t{{.Size}}"],
+                capture_output=True, text=True, timeout=15, shell=True,
+            )
+            if result.returncode == 0:
+                dangling = [l for l in result.stdout.strip().split("\n") if l.strip()]
+                if len(dangling) > 20:
+                    items.append({
+                        "id": "docker-dangling-images",
+                        "severity": "info",
+                        "title": f"悬挂镜像: {len(dangling)} 个",
+                        "message": f"超过 20 个悬挂镜像（<none>:<none>）",
+                        "impact": "占用磁盘空间",
+                        "suggestion": "运行 docker image prune 清理",
+                        "source": "scan_docker_health",
+                    })
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        except Exception as e:
+            logger.warning("scan_docker_health images error: %s", e)
+
+        return items
+
     # ── 全量扫描 ──────────────────────────────────────────────
 
     def scan_all(self) -> List[Dict]:
@@ -175,6 +285,7 @@ class RemindEngine:
             self.scan_blocked_tasks,
             self.scan_stale_projects,
             self.scan_health_failures,
+            self.scan_docker_health,
         ]
         for scanner in scanners:
             try:

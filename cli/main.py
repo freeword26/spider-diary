@@ -31,9 +31,9 @@ def _build_parser():
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    for cmd in ("run", "check", "report", "kanban", "init", "status"):
+    for cmd in ("run", "check", "report", "kanban", "init", "status", "monitor", "cleanup"):
         sub = subparsers.add_parser(cmd, help=f"{cmd} command")
-        if cmd != "status":
+        if cmd not in ("status",):
             sub.add_argument(
                 "--base-path", "-b", default=None, help="Base project path"
             )
@@ -207,7 +207,29 @@ COMMANDS = {
     "kanban": cmd_kanban,
     "init": cmd_init,
     "status": cmd_status,
+    "monitor": cmd_monitor,
+    "cleanup": cmd_cleanup,
 }
+
+
+def cmd_monitor(args):
+    """Run full monitoring suite (models, router, docker)."""
+    from spider_diary.core.daily_monitor import DailyMonitor
+
+    project_root = pathlib.Path(args.base_path) if args.base_path else None
+    monitor = DailyMonitor(project_root=project_root)
+    results = monitor.run_full_check()
+    _print_result(results, as_json=args.as_json)
+
+
+def cmd_cleanup(args):
+    """Run cleanup scheduler (3-tier storage management)."""
+    from spider_diary.core.cleanup_scheduler import CleanupScheduler
+
+    base = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
+    scheduler = CleanupScheduler(base_path=base)
+    summary = scheduler.run_full_cleanup()
+    _print_result(summary, as_json=args.as_json)
 
 
 def main():
