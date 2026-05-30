@@ -187,8 +187,8 @@ def cmd_cleanup(args):
     """Run cleanup scheduler (3-tier storage management)."""
     from spider_diary.core.cleanup_scheduler import CleanupScheduler
 
-    base = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
-    scheduler = CleanupScheduler(base_path=base)
+    root = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
+    scheduler = CleanupScheduler(project_root=root)
     summary = scheduler.run_full_cleanup()
     _print_result(summary, as_json=args.as_json)
 
