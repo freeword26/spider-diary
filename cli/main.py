@@ -189,7 +189,7 @@ def cmd_cleanup(args):
 
     root = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
     scheduler = CleanupScheduler(project_root=root)
-    summary = scheduler.run_full_cleanup()
+    summary = scheduler.run_cleanup()
     _print_result(summary, as_json=args.as_json)
 
 
