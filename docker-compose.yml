@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  spider-diary:
+    build: .
+    container_name: spider-diary
+    volumes:
+      - ./reports:/app/reports
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped

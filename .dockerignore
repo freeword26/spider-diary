@@ -1,0 +1,16 @@
+__pycache__
+*.pyc
+.git
+.pytest_cache
+*.egg-info
+dist/
+build/
+.env
+*.db
+docs/
+tests/
+docker-compose.yml
+Dockerfile
+MIGRATION.md
+PROJECT_SUMMARY.md
+USAGE.md
