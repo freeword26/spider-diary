@@ -31,9 +31,12 @@ def _build_parser():
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    for cmd in ("run", "check", "report", "kanban", "init", "status", "monitor", "cleanup", "docker-health"):
+    for cmd in (
+        "run", "check", "report", "kanban", "init", "status",
+        "monitor", "cleanup", "docker-health", "baseline", "emergency",
+    ):
         sub = subparsers.add_parser(cmd, help=f"{cmd} command")
-        if cmd != "status":
+        if cmd not in ("status", "emergency"):
             sub.add_argument("--base-path", "-b", default=None, help="Base project path")
             sub.add_argument("--output-dir", "-o", default=None, help="Output directory for reports")
             sub.add_argument("--db-path", "-d", default=None, help="Database path")
@@ -42,6 +45,14 @@ def _build_parser():
             sub.add_argument("--db-path", "-d", default=None, help="Database path")
         sub.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
         sub.add_argument("--json", action="store_true", dest="as_json", help="Output as JSON")
+
+    # baseline command has an extra --duration argument
+    baseline_parser = subparsers.add_parser("baseline", help="baseline command")
+    baseline_parser.add_argument("--base-path", "-b", default=None, help="Base project path")
+    baseline_parser.add_argument("--duration", type=int, default=60, help="Baseline duration in seconds")
+    baseline_parser.add_argument("--interval", type=int, default=5, help="Sampling interval in seconds")
+    baseline_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+    baseline_parser.add_argument("--json", action="store_true", dest="as_json", help="Output as JSON")
 
     return parser
 
@@ -184,7 +195,6 @@ def cmd_status(args):
 
 
 def cmd_cleanup(args):
-    """Run cleanup scheduler (3-tier storage management)."""
     from spider_diary.core.cleanup_scheduler import CleanupScheduler
 
     root = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
@@ -193,9 +203,16 @@ def cmd_cleanup(args):
     _print_result(summary, as_json=args.as_json)
 
 
+def cmd_monitor(args):
+    from spider_diary.core.daily_monitor import DailyMonitor
+
+    project_root = pathlib.Path(args.base_path) if args.base_path else None
+    monitor = DailyMonitor(project_root=project_root)
+    results = monitor.run_full_check()
+    _print_result(results, as_json=args.as_json)
+
+
 def cmd_docker_health(args):
-    """生成 Docker 健康巡检 JSON 报告。"""
-    import pathlib
     from spider_diary.remind.remind_engine import RemindEngine
 
     base = pathlib.Path(args.base_path) if args.base_path else None
@@ -209,24 +226,48 @@ def cmd_docker_health(args):
     _print_result(result, as_json=args.as_json)
 
 
-def cmd_monitor(args):
-    """Run full monitoring suite (models, router, docker)."""
-    from spider_diary.core.daily_monitor import DailyMonitor
+def cmd_baseline(args):
+    from spider_diary.core.perf_baseline import PerfBaseline
 
-    project_root = pathlib.Path(args.base_path) if args.base_path else None
-    monitor = DailyMonitor(project_root=project_root)
-    results = monitor.run_full_check()
-    _print_result(results, as_json=args.as_json)
+    data_dir = pathlib.Path(args.base_path) / "data" if args.base_path else None
+    pb = PerfBaseline(data_dir=data_dir)
+
+    if pb.baseline_file.exists():
+        result = pb.run_full_check()
+    else:
+        baseline = pb.establish_baseline(
+            duration_sec=args.duration, interval_sec=args.interval
+        )
+        result = {
+            "status": "ok",
+            "message": "Baseline established",
+            "baseline": {
+                "cpu_avg": baseline.cpu_avg,
+                "cpu_peak": baseline.cpu_peak,
+                "mem_avg": baseline.mem_avg,
+                "mem_peak": baseline.mem_peak,
+                "score": baseline.score,
+            },
+        }
+    _print_result(result, as_json=args.as_json)
 
 
-def cmd_cleanup(args):
-    """Run cleanup scheduler (3-tier storage management)."""
-    from spider_diary.core.cleanup_scheduler import CleanupScheduler
+def cmd_emergency(args):
+    from spider_diary.core.perf_baseline import PerfBaseline
 
-    root = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
-    scheduler = CleanupScheduler(project_root=root)
-    summary = scheduler.run_cleanup()
-    _print_result(summary, as_json=args.as_json)
+    pb = PerfBaseline()
+    actions = pb.get_emergency_actions()
+    sample = pb.take_sample()
+    result = {
+        "status": "ok",
+        "current": {
+            "cpu_percent": sample.cpu_percent,
+            "mem_percent": sample.mem_percent,
+            "disk_percent": sample.disk_percent,
+        },
+        "actions": actions,
+    }
+    _print_result(result, as_json=args.as_json)
 
 
 COMMANDS = {
@@ -239,6 +280,8 @@ COMMANDS = {
     "cleanup": cmd_cleanup,
     "monitor": cmd_monitor,
     "docker-health": cmd_docker_health,
+    "baseline": cmd_baseline,
+    "emergency": cmd_emergency,
 }
 
 

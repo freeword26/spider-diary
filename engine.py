@@ -2,11 +2,16 @@ import datetime
 import logging
 import os
 import pathlib
+import sys
 
-from .core.system_checker import SystemChecker
-from .core.project_reader import ProjectReader
-from .report.report_generator import ReportGenerator
-from .report.kanban_sync import KanbanSyncer
+_pkg_root = pathlib.Path(__file__).resolve().parent
+if str(_pkg_root) not in sys.path:
+    sys.path.insert(0, str(_pkg_root))
+
+from core.system_checker import SystemChecker
+from core.project_reader import ProjectReader
+from report.report_generator import ReportGenerator
+from report.kanban_sync import KanbanSyncer
 
 logger = logging.getLogger(__name__)
 

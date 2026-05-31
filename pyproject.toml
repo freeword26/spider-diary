@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 authors = [
     {name = "Spider Diary Team"}
 ]
-keywords = ["project-management", "reporting", "kanban", "system-monitoring"]
+keywords = ["project-management", "reporting", "kanban", "system-monitoring", "devops"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -32,20 +32,27 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
-    "black>=23.0",
-    "isort>=5.0",
 ]
 
 [project.scripts]
 spider-diary = "spider_diary.cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/freeword26/Mini-spider"
-Repository = "https://github.com/freeword26/Mini-spider.git"
+Homepage = "https://github.com/freeword26/spider-diary"
+Repository = "https://github.com/freeword26/spider-diary.git"
+
+# Flat package layout — packages are in the root directory
+[tool.setuptools]
+py-modules = []
 
 [tool.setuptools.packages.find]
-include = ["spider_diary*"]
+where = ["."]
+include = ["core", "core.*", "report", "report.*", "storage", "storage.*", "remind", "remind.*", "cli", "cli.*", "scripts", "scripts.*"]
 exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.black]
 line-length = 100
