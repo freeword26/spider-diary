@@ -31,7 +31,7 @@ def _build_parser():
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    for cmd in ("run", "check", "report", "kanban", "init", "status", "monitor", "cleanup"):
+    for cmd in ("run", "check", "report", "kanban", "init", "status", "monitor", "cleanup", "docker-health"):
         sub = subparsers.add_parser(cmd, help=f"{cmd} command")
         if cmd != "status":
             sub.add_argument("--base-path", "-b", default=None, help="Base project path")
@@ -193,6 +193,22 @@ def cmd_cleanup(args):
     _print_result(summary, as_json=args.as_json)
 
 
+def cmd_docker_health(args):
+    """生成 Docker 健康巡检 JSON 报告。"""
+    import pathlib
+    from spider_diary.remind.remind_engine import RemindEngine
+
+    base = pathlib.Path(args.base_path) if args.base_path else None
+    engine = RemindEngine(base_path=base)
+    out_file = engine.generate_docker_health_report()
+    result = {
+        "status": "ok",
+        "report_path": str(out_file) if out_file else None,
+        "message": "Docker health report generated",
+    }
+    _print_result(result, as_json=args.as_json)
+
+
 def cmd_monitor(args):
     """Run full monitoring suite (models, router, docker)."""
     from spider_diary.core.daily_monitor import DailyMonitor
@@ -201,6 +217,16 @@ def cmd_monitor(args):
     monitor = DailyMonitor(project_root=project_root)
     results = monitor.run_full_check()
     _print_result(results, as_json=args.as_json)
+
+
+def cmd_cleanup(args):
+    """Run cleanup scheduler (3-tier storage management)."""
+    from spider_diary.core.cleanup_scheduler import CleanupScheduler
+
+    root = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
+    scheduler = CleanupScheduler(project_root=root)
+    summary = scheduler.run_cleanup()
+    _print_result(summary, as_json=args.as_json)
 
 
 COMMANDS = {
@@ -212,6 +238,7 @@ COMMANDS = {
     "status": cmd_status,
     "cleanup": cmd_cleanup,
     "monitor": cmd_monitor,
+    "docker-health": cmd_docker_health,
 }
 
 

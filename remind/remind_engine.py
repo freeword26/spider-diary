@@ -317,6 +317,106 @@ class RemindEngine:
                 logger.info("New blocker: [%s] %s", item["severity"], item["title"])
         return new_count
 
+    # ── Docker 健康报告 ────────────────────────────────────────
+
+    def _check_docker_disk(self) -> Dict:
+        """检查 Docker 磁盘使用情况。"""
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["docker", "system", "df"],
+                capture_output=True, text=True, timeout=15, shell=True,
+            )
+            if result.returncode != 0:
+                return {"available": False, "error": f"returncode={result.returncode}"}
+            lines = result.stdout.strip().split("\n")
+            parsed = {}
+            for line in lines[1:]:
+                parts = line.split()
+                if len(parts) >= 4:
+                    parsed[parts[0]] = {"size": parts[1], "shared": parts[2], "local": parts[3], "percentage": parts[-1] if "%" in parts[-1] else "N/A"}
+            return {"available": True, "raw": result.stdout.strip(), "parsed": parsed}
+        except FileNotFoundError:
+            return {"available": False, "error": "docker not in PATH"}
+        except subprocess.TimeoutExpired:
+            return {"available": False, "error": "docker command timed out"}
+        except Exception as e:
+            return {"available": False, "error": str(e)}
+
+    def _check_docker_containers(self) -> Dict:
+        """检查 Docker 容器状态。"""
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["docker", "ps", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Image}}"],
+                capture_output=True, text=True, timeout=15, shell=True,
+            )
+            if result.returncode != 0:
+                return {"available": False, "error": f"returncode={result.returncode}"}
+            lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
+            running = [l for l in lines if "Up" in l]
+            exited = [l for l in lines if "Exited" in l or "Dead" in l]
+            paused = [l for l in lines if "Paused" in l]
+            return {
+                "available": True,
+                "total": len(lines),
+                "running": len(running),
+                "exited": len(exited),
+                "paused": len(paused),
+                "exited_details": [l.split("\t")[1] for l in exited[:10]],
+            }
+        except FileNotFoundError:
+            return {"available": False, "error": "docker not in PATH"}
+        except Exception as e:
+            return {"available": False, "error": str(e)}
+
+    def _check_docker_images(self) -> Dict:
+        """检查 Docker 镜像状态。"""
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["docker", "images", "--format", "{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}"],
+                capture_output=True, text=True, timeout=15, shell=True,
+            )
+            if result.returncode != 0:
+                return {"available": False, "error": f"returncode={result.returncode}"}
+            lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
+            dangling = [l for l in lines if "<none>" in l]
+            return {
+                "available": True,
+                "total": len(lines),
+                "dangling": len(dangling),
+                "dangling_details": [l.split("\t")[0] for l in dangling[:10]],
+            }
+        except FileNotFoundError:
+            return {"available": False, "error": "docker not in PATH"}
+        except Exception as e:
+            return {"available": False, "error": str(e)}
+
+    def generate_docker_health_report(self, output_dir: Optional[Path] = None) -> Optional[Path]:
+        """生成 Docker 健康巡检 JSON 报告，输出到指定目录。
+
+        报告包含：磁盘占用、容器状态、镜像状态、扫描到的告警。
+        默认输出到 reports/docker_health_check_YYYYMMDD_HHMMSS.json。
+        """
+        report = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "docker_disk": self._check_docker_disk(),
+            "docker_containers": self._check_docker_containers(),
+            "docker_images": self._check_docker_images(),
+            "alerts": self.scan_docker_health(),
+        }
+
+        out_dir = output_dir or (self.report_dir / "docker_reports")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = out_dir / f"docker_health_check_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        out_file.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+        logger.info("Docker health report written: %s", out_file)
+        return out_file
+
     # ── 生成报告片段 ──────────────────────────────────────────
 
     def build_remind_section(self) -> str:
