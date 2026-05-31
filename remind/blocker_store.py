@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
-DEFAULT_STORE_PATH = Path(__file__).resolve().parents[2] / "3_任务执行中枢（TAPD）" / "07_监控报告" / "blockers.json"
+DEFAULT_STORE_PATH = Path(__file__).resolve().parents[2] / "data" / "blockers.json"
 
 
 class BlockerStore:
@@ -66,21 +66,21 @@ class BlockerStore:
     def summary(self) -> str:
         active = self.get_active()
         if not active:
-            return "  ✅ 无活跃阻塞项"
+            return "  ✅ No active blockers"
         crit = [i for i in active if i.get("severity") == "critical"]
         warn = [i for i in active if i.get("severity") == "warning"]
         info = [i for i in active if i.get("severity") not in ("critical", "warning")]
         lines = []
         if crit:
-            lines.append(f"  🔴 严重 ({len(crit)}):")
+            lines.append(f"  🔴 Critical ({len(crit)}):")
             for c in crit:
                 lines.append(f"    [{c['id']}] {c.get('title', c.get('message', ''))}")
         if warn:
-            lines.append(f"  🟡 警告 ({len(warn)}):")
+            lines.append(f"  🟡 Warning ({len(warn)}):")
             for w in warn:
                 lines.append(f"    [{w['id']}] {w.get('title', w.get('message', ''))}")
         if info:
-            lines.append(f"  🔵 信息 ({len(info)}):")
+            lines.append(f"  🔵 Info ({len(info)}):")
             for i in info:
                 lines.append(f"    [{i['id']}] {i.get('title', i.get('message', ''))}")
         return "\n".join(lines)
@@ -89,16 +89,16 @@ class BlockerStore:
         """Generate a Markdown reminder section for daily reports."""
         active = self.get_active()
         if not active:
-            return "\n## ✅ 系统健康\n\n无活跃阻塞项，所有系统正常运行。\n"
+            return "\n## ✅ System Health\n\nNo active blockers. All systems nominal.\n"
 
         lines = [
             "",
-            "## ⚠️ 阻塞项提醒",
+            "## ⚠️ Active Blockers",
             "",
-            f"> 更新时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}  |  活跃阻塞项: {len(active)}",
+            f"> Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}  |  Active: {len(active)}",
             "",
-            "| # | 级别 | 阻塞项 | 影响 | 建议 |",
-            "|---|------|--------|------|------|",
+            "| # | Sev | Item | Impact | Action |",
+            "|---|-----|------|--------|--------|",
         ]
         for item in active:
             sev = item.get("severity", "info")
