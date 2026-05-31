@@ -34,6 +34,8 @@ def _build_parser():
     for cmd in (
         "run", "check", "report", "kanban", "init", "status",
         "monitor", "cleanup", "docker-health", "baseline", "emergency",
+        "performance", "redundancy",
+        "l1-protocol", "l2-process", "l3-container", "l4-mesh", "l5-continuity",
     ):
         sub = subparsers.add_parser(cmd, help=f"{cmd} command")
         if cmd not in ("status", "emergency"):
@@ -270,6 +272,69 @@ def cmd_emergency(args):
     _print_result(result, as_json=args.as_json)
 
 
+def cmd_performance(args):
+    from spider_diary.core.performance_diagnosis import PerformanceDiagnosis
+
+    root = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
+    diag = PerformanceDiagnosis(project_root=root)
+    result = diag.run_full_diagnosis()
+    _print_result(result, as_json=args.as_json)
+
+
+def cmd_redundancy(args):
+    from core.redundancy_metrics import RedundancyMetrics
+
+    root = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
+    metrics = RedundancyMetrics(project_root=root)
+    result = metrics.run_all()
+    _print_result(result, as_json=args.as_json)
+
+
+def cmd_l1_protocol(args):
+    from core.protocol_fault_tolerance import ProtocolFaultTolerance
+
+    base = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
+    checker = ProtocolFaultTolerance(project_root=base)
+    result = checker.run_all()
+    _print_result(result, as_json=args.as_json)
+
+
+def cmd_l2_process(args):
+    from core.process_fault_tolerance import ProcessFaultTolerance
+
+    base = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
+    checker = ProcessFaultTolerance(project_root=base)
+    result = checker.run_all()
+    _print_result(result, as_json=args.as_json)
+
+
+def cmd_l3_container(args):
+    from core.container_fault_tolerance import ContainerFaultTolerance
+
+    base = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
+    checker = ContainerFaultTolerance(project_root=base)
+    result = checker.run_all()
+    _print_result(result, as_json=args.as_json)
+
+
+def cmd_l4_mesh(args):
+    from core.service_mesh_fault_tolerance import ServiceMeshFaultTolerance
+
+    base = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
+    checker = ServiceMeshFaultTolerance(project_root=base)
+    result = checker.run_all()
+    _print_result(result, as_json=args.as_json)
+
+
+def cmd_l5_continuity(args):
+    from core.business_continuity import BusinessContinuity
+
+    base = pathlib.Path(args.base_path) if args.base_path else pathlib.Path.cwd()
+    checker = BusinessContinuity(project_root=base)
+    result = checker.run_all()
+    _print_result(result, as_json=args.as_json)
+
+
 COMMANDS = {
     "run": cmd_run,
     "check": cmd_check,
@@ -282,6 +347,13 @@ COMMANDS = {
     "docker-health": cmd_docker_health,
     "baseline": cmd_baseline,
     "emergency": cmd_emergency,
+    "performance": cmd_performance,
+    "redundancy": cmd_redundancy,
+    "l1-protocol": cmd_l1_protocol,
+    "l2-process": cmd_l2_process,
+    "l3-container": cmd_l3_container,
+    "l4-mesh": cmd_l4_mesh,
+    "l5-continuity": cmd_l5_continuity,
 }
 
 

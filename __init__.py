@@ -27,7 +27,20 @@ from engine import DiaryEngine
 from remind import BlockerStore
 from remind.remind_engine import RemindEngine
 
+# Fault tolerance modules
+from core.protocol_fault_tolerance import ProtocolFaultTolerance
+from core.process_fault_tolerance import ProcessFaultTolerance
+from core.container_fault_tolerance import ContainerFaultTolerance
+from core.service_mesh_fault_tolerance import ServiceMeshFaultTolerance
+from core.business_continuity import BusinessContinuity
+
+# Performance modules
+from core.perf_baseline import PerfBaseline
+from core.performance_diagnosis import PerformanceDiagnosis
+from core.redundancy_metrics import RedundancyMetrics
+
 __all__ = [
+    # Core
     "DiaryEngine",
     "SystemChecker",
     "ProjectReader",
@@ -36,4 +49,14 @@ __all__ = [
     "ProjectDB",
     "BlockerStore",
     "RemindEngine",
+    # Fault tolerance
+    "ProtocolFaultTolerance",
+    "ProcessFaultTolerance",
+    "ContainerFaultTolerance",
+    "ServiceMeshFaultTolerance",
+    "BusinessContinuity",
+    # Performance
+    "PerfBaseline",
+    "PerformanceDiagnosis",
+    "RedundancyMetrics",
 ]
